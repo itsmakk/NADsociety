@@ -1,0 +1,1 @@
+"""NADSOC Backend — Utility Package"""
