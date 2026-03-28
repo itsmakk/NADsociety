@@ -6,7 +6,7 @@
 
 const API = (() => {
     // Backend API base URL — set during deployment
-    const BASE_URL = window.NADSOC_CONFIG?.API_URL || 'http://localhost:5000/api';
+    const BASE_URL = window.NADSOC_CONFIG?.API_URL || 'https://nadsociety-production.up.railway.app/api';
 
     /**
      * Get the current auth token from localStorage
