@@ -169,9 +169,11 @@
     </div>
 
     <script>
-        // Configuration — update after deployment
+        // Configuration — auto-detects environment
         window.NADSOC_CONFIG = {
-            API_URL: 'http://localhost:5000/api'
+            API_URL: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+                ? 'http://localhost:5000/api'
+                : 'https://nadsociety-production.up.railway.app/api'
         };
     </script>
     <script src="/js/api.js"></script>
