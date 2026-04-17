@@ -2,10 +2,65 @@
 NADSOC — Audit Logging Service
 Append-only audit log for every financial action (SRS 4.11).
 Superadmin actions go to separate hidden log (SRS 4.12.1).
+
+Phase 5: HMAC-based tamper protection — every log entry gets
+          a cryptographic checksum that chains to the previous entry.
 """
 
+import os
+import hmac
+import hashlib
+import json
 from flask import request, g
 from utils.db import execute_query, get_cursor
+
+
+# Secret for HMAC signing audit entries
+AUDIT_SECRET = os.environ.get('AUDIT_HMAC_SECRET',
+                               os.environ.get('SECRET_KEY', 'audit-fallback-key'))
+
+
+def _compute_checksum(data_dict, prev_checksum=None):
+    """
+    Compute HMAC-SHA256 checksum for an audit entry.
+    Chains to previous entry's checksum for tamper detection.
+
+    Args:
+        data_dict: Dict of log entry fields
+        prev_checksum: Checksum of the previous log entry (chain link)
+
+    Returns:
+        Hex digest of the HMAC checksum
+    """
+    # Build a deterministic string from the entry data
+    fields = [
+        str(data_dict.get('user_id', '')),
+        str(data_dict.get('username', '')),
+        str(data_dict.get('module', '')),
+        str(data_dict.get('action_type', '')),
+        str(data_dict.get('reference_id', '')),
+        json.dumps(data_dict.get('details'), sort_keys=True) if data_dict.get('details') else '',
+        str(data_dict.get('ip_address', '')),
+        str(prev_checksum or 'GENESIS'),
+    ]
+    payload = '|'.join(fields)
+
+    return hmac.new(
+        AUDIT_SECRET.encode(),
+        payload.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+
+def _get_last_checksum(cursor=None):
+    """Get the checksum of the most recent audit log entry."""
+    query = "SELECT checksum FROM audit_log ORDER BY log_id DESC LIMIT 1"
+    if cursor:
+        cursor.execute(query)
+        row = cursor.fetchone()
+    else:
+        row = execute_query(query, fetch_one=True)
+    return row['checksum'] if row and row.get('checksum') else None
 
 
 def log_action(module, action_type, reference_id=None, details=None, cursor=None):
@@ -21,23 +76,40 @@ def log_action(module, action_type, reference_id=None, details=None, cursor=None
         details: Dict of extra details (stored as JSONB)
         cursor: Optional database cursor for transactional logging
     """
-    import json
-
     user = getattr(g, 'current_user', None)
     user_id = user['user_id'] if user else None
     username = user['username'] if user else 'system'
     role = user['role'] if user else None
 
     ip_address = request.remote_addr if request else None
+    # Use X-Forwarded-For if available
+    if request:
+        forwarded = request.headers.get('X-Forwarded-For', '')
+        if forwarded:
+            ip_address = forwarded.split(',')[0].strip()
 
     # Superadmin actions go to separate hidden log
     if role == 'superadmin':
         _log_superadmin(action_type, details, ip_address, cursor)
         return
 
+    # Compute tamper-proof checksum
+    entry_data = {
+        'user_id': user_id,
+        'username': username,
+        'module': module,
+        'action_type': action_type,
+        'reference_id': str(reference_id) if reference_id else None,
+        'details': details,
+        'ip_address': ip_address,
+    }
+
+    prev_checksum = _get_last_checksum(cursor)
+    checksum = _compute_checksum(entry_data, prev_checksum)
+
     query = """
-        INSERT INTO audit_log (user_id, username, module, action_type, reference_id, details, ip_address)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO audit_log (user_id, username, module, action_type, reference_id, details, ip_address, checksum)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """
     params = (
         user_id,
@@ -46,7 +118,8 @@ def log_action(module, action_type, reference_id=None, details=None, cursor=None
         action_type,
         str(reference_id) if reference_id else None,
         json.dumps(details) if details else None,
-        ip_address
+        ip_address,
+        checksum
     )
 
     if cursor:
@@ -57,8 +130,6 @@ def log_action(module, action_type, reference_id=None, details=None, cursor=None
 
 def _log_superadmin(action_type, details, ip_address, cursor=None):
     """Log superadmin action to the hidden superadmin_log table."""
-    import json
-
     query = """
         INSERT INTO superadmin_log (action_type, details, ip_address)
         VALUES (%s, %s, %s)
@@ -73,6 +144,92 @@ def _log_superadmin(action_type, details, ip_address, cursor=None):
         cursor.execute(query, params)
     else:
         execute_query(query, params)
+
+
+def verify_audit_chain(start_id=None, end_id=None, limit=100):
+    """
+    Verify the integrity of the audit log chain.
+    Returns a report of any tampered entries.
+
+    Args:
+        start_id: Starting log_id (default: beginning)
+        end_id: Ending log_id (default: latest)
+        limit: Max entries to verify per call
+
+    Returns:
+        Dict with 'valid', 'checked', 'tampered_entries'
+    """
+    conditions = []
+    params = []
+
+    if start_id:
+        conditions.append("log_id >= %s")
+        params.append(start_id)
+    if end_id:
+        conditions.append("log_id <= %s")
+        params.append(end_id)
+
+    where = " AND ".join(conditions) if conditions else "1=1"
+
+    query = f"""
+        SELECT log_id, user_id, username, module, action_type, reference_id,
+               details, ip_address, checksum, timestamp
+        FROM audit_log
+        WHERE {where}
+        ORDER BY log_id ASC
+        LIMIT %s
+    """
+    params.append(limit)
+
+    logs = execute_query(query, tuple(params), fetch_all=True) or []
+
+    tampered = []
+    prev_checksum = None
+
+    # Get the checksum of entry before our range
+    if logs and start_id:
+        prev_entry = execute_query(
+            "SELECT checksum FROM audit_log WHERE log_id < %s ORDER BY log_id DESC LIMIT 1",
+            (start_id,),
+            fetch_one=True
+        )
+        prev_checksum = prev_entry['checksum'] if prev_entry else None
+
+    for log in logs:
+        entry_data = {
+            'user_id': log['user_id'],
+            'username': log['username'],
+            'module': log['module'],
+            'action_type': log['action_type'],
+            'reference_id': log['reference_id'],
+            'details': log['details'] if isinstance(log['details'], dict) else (
+                json.loads(log['details']) if log['details'] else None
+            ),
+            'ip_address': log['ip_address'],
+        }
+
+        expected = _compute_checksum(entry_data, prev_checksum)
+        stored = log.get('checksum', '')
+
+        if stored and expected != stored:
+            tampered.append({
+                'log_id': log['log_id'],
+                'timestamp': log['timestamp'].isoformat() if log.get('timestamp') else None,
+                'expected_checksum': expected[:16] + '...',
+                'stored_checksum': stored[:16] + '...'
+            })
+
+        prev_checksum = stored
+
+    return {
+        'valid': len(tampered) == 0,
+        'checked': len(logs),
+        'tampered_entries': tampered,
+        'range': {
+            'start': logs[0]['log_id'] if logs else None,
+            'end': logs[-1]['log_id'] if logs else None
+        }
+    }
 
 
 def get_audit_logs(filters=None, page=1, per_page=50):
@@ -121,7 +278,7 @@ def get_audit_logs(filters=None, page=1, per_page=50):
     offset = (page - 1) * per_page
     data_query = f"""
         SELECT log_id, user_id, username, module, action_type, reference_id,
-               details, ip_address, timestamp
+               details, ip_address, timestamp, checksum
         FROM audit_log
         WHERE {where_clause}
         ORDER BY timestamp DESC
@@ -135,6 +292,9 @@ def get_audit_logs(filters=None, page=1, per_page=50):
     for log in logs:
         log_dict = dict(log)
         log_dict['timestamp'] = log_dict['timestamp'].isoformat() if log_dict.get('timestamp') else None
+        # Include integrity indicator (don't expose full checksum)
+        log_dict['integrity'] = 'verified' if log_dict.get('checksum') else 'legacy'
+        log_dict.pop('checksum', None)
         result_logs.append(log_dict)
 
     return {

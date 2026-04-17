@@ -1,1 +1,1 @@
-"""NADSOC Backend — Middleware Package"""
+"""NADSOC — Middleware Package (Phase 5: Security Hardened)"""

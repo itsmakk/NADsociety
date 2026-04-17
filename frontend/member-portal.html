@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>My Account — NADSOC Member Portal</title>
+    <meta name="description" content="NADSOC Member Self-Service Portal — View your finances, loans, deposits, and transactions"/>
+    <link rel="icon" href="/assets/logo.png" type="image/png"/>
+    <link rel="stylesheet" href="/css/main.css"/>
+    <style>
+        .portal-header {
+            background: linear-gradient(135deg, var(--clr-primary-700) 0%, var(--clr-primary-500) 100%);
+            color: #ffffff;
+            padding: var(--sp-4) var(--sp-6);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .portal-header .brand {
+            display: flex;
+            align-items: center;
+            gap: var(--sp-3);
+            font-size: var(--fs-lg);
+            font-weight: 700;
+        }
+        .portal-header .brand img { height: 32px; }
+        .portal-main {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: var(--sp-6);
+            min-height: calc(100vh - 130px);
+        }
+        .portal-footer {
+            text-align: center;
+            padding: var(--sp-4);
+            font-size: var(--fs-xs);
+            color: var(--clr-neutral-500);
+            border-top: 1px solid var(--clr-neutral-200);
+        }
+        .portal-welcome {
+            background: linear-gradient(135deg, var(--clr-primary-50), #EFF6FF);
+            border-radius: var(--radius-lg);
+            padding: var(--sp-6);
+            margin-bottom: var(--sp-6);
+            display: flex;
+            align-items: center;
+            gap: var(--sp-5);
+        }
+        .portal-welcome-avatar {
+            width: 64px; height: 64px;
+            border-radius: var(--radius-full);
+            background: var(--clr-primary-500);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: var(--fs-xl); font-weight: 700; flex-shrink: 0;
+        }
+        .portal-welcome h2 { font-size: var(--fs-xl); font-weight: 700; color: var(--clr-neutral-800); margin-bottom: 2px; }
+        .portal-welcome p { font-size: var(--fs-sm); color: var(--clr-neutral-500); }
+        @media (max-width: 600px) {
+            .portal-main { padding: var(--sp-4); }
+            .portal-welcome { flex-direction: column; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+    <header class="portal-header">
+        <div class="brand">
+            <img src="/assets/logo.png" alt="NADSOC" onerror="this.style.display='none'"/>
+            <span>NADSOC Member Portal</span>
+        </div>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);" onclick="Auth.logout()">🚪 Logout</button>
+    </header>
+
+    <main class="portal-main" id="portal-content">
+        <!-- Loaded by script -->
+    </main>
+
+    <footer class="portal-footer">
+        © 2026 NAD Employees Co-operative Credit Society Ltd., Karanja
+    </footer>
+
+    <script>
+        window.NADSOC_CONFIG = { API_URL: 'http://localhost:5000/api' };
+    </script>
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+    (async function() {
+        // Check auth
+        if (!Auth.isLoggedIn() || Auth.getRole() !== 'member') {
+            window.location.href = '/index.html';
+            return;
+        }
+
+        const user = Auth.getUser();
+        const genNo = user?.gen_no || user?.username;
+        const initials = (user?.full_name||'M').split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase();
+        const content = document.getElementById('portal-content');
+
+        // Load member data
+        let member = {};
+        try {
+            const data = await API.get(`/members/${genNo}`);
+            member = data.member || data;
+        } catch {
+            member = {
+                gen_no: genNo, name: user?.full_name || 'Member', token_no: '—',
+                employee_type: '—', part: '—', mobile_no: '—', email: '—',
+                ll_outstanding: 125000, sl_outstanding: 18000, cd_balance: 42000, share_balance: 8000
+            };
+        }
+
+        content.innerHTML = `
+            <!-- Welcome -->
+            <div class="portal-welcome">
+                <div class="portal-welcome-avatar">${initials}</div>
+                <div>
+                    <h2>Welcome, ${member.name}</h2>
+                    <p>GEN No: ${member.gen_no} | Token: ${member.token_no||'—'} | ${member.employee_type||'—'} — ${member.part||'—'}</p>
+                </div>
+            </div>
+
+            <!-- Financial Summary -->
+            <div class="grid grid-4 mb-6">
+                <div class="stat-card">
+                    <div class="stat-icon">🏦</div>
+                    <div><div class="stat-value">${Utils.formatCurrency(member.ll_outstanding||0)}</div><div class="stat-label">LL Outstanding</div></div>
+                </div>
+                <div class="stat-card stat-card-info">
+                    <div class="stat-icon">💳</div>
+                    <div><div class="stat-value">${Utils.formatCurrency(member.sl_outstanding||0)}</div><div class="stat-label">SL Outstanding</div></div>
+                </div>
+                <div class="stat-card stat-card-success">
+                    <div class="stat-icon">💰</div>
+                    <div><div class="stat-value">${Utils.formatCurrency(member.cd_balance||0)}</div><div class="stat-label">CD Balance</div></div>
+                </div>
+                <div class="stat-card stat-card-warning">
+                    <div class="stat-icon">📊</div>
+                    <div><div class="stat-value">${Utils.formatCurrency(member.share_balance||0)}</div><div class="stat-label">Share Balance</div></div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="card" id="portal-tabs">
+                <div class="tab-bar">
+                    <button class="tab-item active" data-tab="tab-profile">👤 My Profile</button>
+                    <button class="tab-item" data-tab="tab-loans">🏦 My Loans</button>
+                    <button class="tab-item" data-tab="tab-surety">🤝 My Surety</button>
+                    <button class="tab-item" data-tab="tab-transactions">📋 My Transactions</button>
+                </div>
+
+                <div class="tab-panel active" id="tab-profile">
+                    <div class="info-grid">
+                        <div class="info-item"><div class="info-label">Full Name</div><div class="info-value">${member.name}</div></div>
+                        <div class="info-item"><div class="info-label">GEN No</div><div class="info-value">${member.gen_no}</div></div>
+                        <div class="info-item"><div class="info-label">Token No</div><div class="info-value">${member.token_no||'—'}</div></div>
+                        <div class="info-item"><div class="info-label">Mobile</div><div class="info-value">${member.mobile_no||'—'}</div></div>
+                        <div class="info-item"><div class="info-label">Email</div><div class="info-value">${member.email||'—'}</div></div>
+                        <div class="info-item"><div class="info-label">Designation</div><div class="info-value">${member.designation||'—'}</div></div>
+                        <div class="info-item"><div class="info-label">Employee Type</div><div class="info-value">${member.employee_type||'—'}</div></div>
+                        <div class="info-item"><div class="info-label">Part</div><div class="info-value">${member.part||'—'}</div></div>
+                        <div class="info-item"><div class="info-label">Date of Joining</div><div class="info-value">${Utils.formatDate(member.doj)}</div></div>
+                        <div class="info-item"><div class="info-label">Date of Retirement</div><div class="info-value">${Utils.formatDate(member.dor)}</div></div>
+                        <div class="info-item"><div class="info-label">Nominee</div><div class="info-value">${member.nominee_name||'—'} ${member.nominee_relation?'('+member.nominee_relation+')':''}</div></div>
+                        <div class="info-item"><div class="info-label">Status</div><div class="info-value">${Utils.statusBadge(member.member_status||'Active')}</div></div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" id="tab-loans">
+                    <div id="my-loans">${Utils.renderLoading()}</div>
+                </div>
+
+                <div class="tab-panel" id="tab-surety">
+                    <div id="my-surety">${Utils.renderLoading()}</div>
+                </div>
+
+                <div class="tab-panel" id="tab-transactions">
+                    <div id="my-transactions">${Utils.renderLoading()}</div>
+                </div>
+            </div>
+        `;
+
+        Utils.initTabs('portal-tabs');
+        loadMemberLoans(genNo);
+        loadMemberSurety(genNo);
+        loadMemberTransactions(genNo);
+    })();
+
+    async function loadMemberLoans(genNo) {
+        const el = document.getElementById('my-loans');
+        if (!el) return;
+        try {
+            const data = await API.get(`/loans?member_id=${genNo}`);
+            const loans = data.loans || data.data || [];
+            if (loans.length === 0) { el.innerHTML = Utils.renderEmptyState('🏦','No active loans','You currently have no outstanding loans.'); return; }
+            let html = '';
+            loans.forEach(l => {
+                const outstanding = (l.outstanding_principal||0) + (l.outstanding_interest||0);
+                html += `<div class="card mb-4" style="padding:var(--sp-4)">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <span class="font-bold text-primary">${l.loan_id}</span>
+                            <span class="badge ${l.loan_type==='LL'?'badge-info':'badge-warning'} ml-2">${l.loan_type}</span>
+                            ${Utils.statusBadge(l.status)}
+                        </div>
+                    </div>
+                    <div class="grid grid-4">
+                        <div class="info-item"><div class="info-label">Sanctioned</div><div class="info-value">${Utils.formatCurrency(l.sanction_amount)}</div></div>
+                        <div class="info-item"><div class="info-label">Outstanding</div><div class="info-value">${Utils.formatCurrency(outstanding)}</div></div>
+                        <div class="info-item"><div class="info-label">EMI</div><div class="info-value">${Utils.formatCurrency(l.fixed_principal)} + Interest</div></div>
+                        <div class="info-item"><div class="info-label">Rate</div><div class="info-value">${l.interest_rate||12}% p.a.</div></div>
+                    </div>
+                </div>`;
+            });
+            el.innerHTML = html;
+        } catch { el.innerHTML = Utils.renderEmptyState('🏦','Loan data unavailable','Please try again later.'); }
+    }
+
+    async function loadMemberSurety(genNo) {
+        const el = document.getElementById('my-surety');
+        if (!el) return;
+        try {
+            const data = await API.get(`/surety?surety_gen_no=${genNo}`);
+            const list = data.exposures || data.data || [];
+            el.innerHTML = list.length ? Utils.renderTable([
+                { key: 'borrower_name', label: 'Borrower' },
+                { key: 'loan_id', label: 'Loan No' },
+                { key: 'outstanding', label: 'Liability', align: 'right', render: r => Utils.formatCurrency(r.outstanding) },
+                { key: 'status', label: 'Status', render: r => Utils.statusBadge(r.status) }
+            ], list) : Utils.renderEmptyState('🤝','No surety obligations','You are not a surety for any active loans.');
+        } catch { el.innerHTML = Utils.renderEmptyState('🤝','Surety data unavailable',''); }
+    }
+
+    async function loadMemberTransactions(genNo) {
+        const el = document.getElementById('my-transactions');
+        if (!el) return;
+        try {
+            const data = await API.get(`/members/${genNo}/transactions`);
+            const txns = data.transactions || data.data || [];
+            el.innerHTML = txns.length ? Utils.renderTable([
+                { key: 'date', label: 'Date', render: r => Utils.formatDate(r.date || r.posted_date) },
+                { key: 'module', label: 'Module' },
+                { key: 'type', label: 'Type' },
+                { key: 'amount', label: 'Amount', align: 'right', render: r => Utils.formatCurrency(r.amount) },
+                { key: 'remark', label: 'Remark', render: r => Utils.truncate(r.remark, 50) }
+            ], txns) : Utils.renderEmptyState('📋','No transactions yet','Your transaction history will appear here.');
+        } catch { el.innerHTML = Utils.renderEmptyState('📋','Transaction data unavailable',''); }
+    }
+    </script>
+</body>
+</html>

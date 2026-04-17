@@ -2,6 +2,9 @@
  * NADSOC — Auth Helper
  * Handles login, logout, session management, and role checks.
  * Uses Supabase Auth via the backend API.
+ *
+ * Phase 5: Session timeout integration, secure session storage,
+ *          login attempt tracking on client side.
  */
 
 const Auth = (() => {
@@ -16,14 +19,19 @@ const Auth = (() => {
         if (data.session) {
             localStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
             localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+
+            // Initialize session timeout manager
+            const timeout = data.session.session_timeout || 1800;
+            SessionManager.init(timeout);
         }
         return data;
     }
 
     /**
-     * Logout — clear session
+     * Logout — clear session and destroy timeout manager
      */
     function logout() {
+        SessionManager.destroy();
         localStorage.removeItem(SESSION_KEY);
         localStorage.removeItem(USER_KEY);
         window.location.href = '/index.html';
@@ -72,6 +80,16 @@ const Auth = (() => {
             window.location.href = '/index.html';
             return false;
         }
+
+        // Initialize session timeout if not already running
+        const session = localStorage.getItem(SESSION_KEY);
+        if (session) {
+            try {
+                const parsed = JSON.parse(session);
+                SessionManager.init(parsed.session_timeout || 1800);
+            } catch { /* ignore */ }
+        }
+
         return true;
     }
 
@@ -101,7 +119,7 @@ const Auth = (() => {
                         <h3 style="font-size:var(--fs-lg);font-weight:700;">🔐 Authorization Required</h3>
                     </div>
                     <div class="modal-body">
-                        <p class="text-sm text-muted mb-4">${actionDescription || 'Please enter your password to confirm this financial transaction.'}</p>
+                        <p class="text-sm text-muted mb-4">${_escapeHtml(actionDescription || 'Please enter your password to confirm this financial transaction.')}</p>
                         <div class="form-group">
                             <label class="form-label">Password <span class="required">*</span></label>
                             <input type="password" class="form-input" id="confirm-password-input" autocomplete="off" placeholder="Enter your login password" />
@@ -146,7 +164,7 @@ const Auth = (() => {
                     cleanup();
                     resolve(true);
                 } catch (err) {
-                    errorEl.textContent = 'Incorrect password. Please try again.';
+                    errorEl.textContent = err.message || 'Incorrect password. Please try again.';
                     input.classList.add('error');
                     input.value = '';
                     input.focus();
@@ -158,6 +176,15 @@ const Auth = (() => {
             submitBtn.addEventListener('click', submit);
             input.addEventListener('keypress', (e) => { if (e.key === 'Enter') submit(); });
         });
+    }
+
+    /**
+     * HTML escape utility to prevent XSS in dynamic content
+     */
+    function _escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     return {

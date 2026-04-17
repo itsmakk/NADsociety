@@ -1,15 +1,20 @@
 """
 NADSOC Management System — Flask Application Entry Point
 The NAD Employees Co-operative Credit Society Ltd., Karanja
+
+Phase 5: Security-hardened with CSRF, rate limiting, input sanitization,
+          CSP, CORS lockdown, session timeout, secure cookies, audit tamper protection.
 """
 
 import os
+import logging
 from flask import Flask, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
 
 def create_app():
     """Application factory pattern."""
@@ -23,33 +28,61 @@ def create_app():
     app.config['SUPABASE_JWT_SECRET'] = os.environ.get('SUPABASE_JWT_SECRET')
     app.config['DATABASE_URL'] = os.environ.get('DATABASE_URL')
 
-    # --- CORS ---
-    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
-    CORS(app, resources={
-        r"/api/*": {
-            "origins": [frontend_url, "http://localhost:3000", "http://127.0.0.1:3000"],
-            "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
-            "supports_credentials": True
-        }
-    })
+    # --- Logging ---
+    is_production = os.environ.get('FLASK_ENV') == 'production'
+    log_level = logging.WARNING if is_production else logging.INFO
+    logging.basicConfig(
+        level=log_level,
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    app.logger.setLevel(log_level)
 
-    # --- Security Headers ---
-    @app.after_request
-    def add_security_headers(response):
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['X-Frame-Options'] = 'DENY'
-        response.headers['X-XSS-Protection'] = '1; mode=block'
-        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-        response.headers['Content-Security-Policy'] = (
-            "default-src 'self'; "
-            "script-src 'self'; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com; "
-            "img-src 'self' data:; "
-            "connect-src 'self' https://*.supabase.co"
-        )
-        return response
+    # --- CORS --- (Development: permissive, Production: locked down in security.py)
+    frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+    if not is_production:
+        CORS(app, resources={
+            r"/api/*": {
+                "origins": [frontend_url, "http://localhost:3000", "http://127.0.0.1:3000"],
+                "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With"],
+                "supports_credentials": True
+            }
+        })
+    else:
+        # Production: strict single-origin CORS
+        CORS(app, resources={
+            r"/api/*": {
+                "origins": [frontend_url],
+                "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+                "allow_headers": ["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With"],
+                "supports_credentials": True,
+                "max_age": 3600
+            }
+        })
+
+    # ============================================================
+    # PHASE 5: Security Middleware Registration (order matters!)
+    # ============================================================
+
+    # 1. Security Headers (CSP, HSTS, X-Frame-Options, cookies, cache control)
+    from middleware.security import init_security_headers, init_cors_lockdown
+    init_security_headers(app)
+    init_cors_lockdown(app)
+
+    # 2. Rate Limiting (brute-force protection on auth endpoints)
+    from middleware.rate_limiter import init_rate_limiter
+    init_rate_limiter(app)
+
+    # 3. CSRF Protection (double-submit token pattern)
+    from middleware.csrf import init_csrf
+    init_csrf(app)
+
+    # 4. Input Sanitization (XSS & injection prevention)
+    from middleware.sanitizer import init_sanitizer
+    init_sanitizer(app)
+
+    # ============================================================
 
     # --- Health Check Endpoint ---
     @app.route('/api/health', methods=['GET'])
@@ -57,7 +90,8 @@ def create_app():
         return jsonify({
             'status': 'healthy',
             'service': 'NADSOC Backend API',
-            'version': '1.0.0'
+            'version': '2.0.0',
+            'security': 'phase5-hardened'
         }), 200
 
     # --- Register Blueprints ---
@@ -102,9 +136,17 @@ def create_app():
     def forbidden(e):
         return jsonify({'error': 'Access forbidden'}), 403
 
+    @app.errorhandler(429)
+    def rate_limited(e):
+        return jsonify({'error': 'Too many requests. Please slow down.'}), 429
+
     @app.errorhandler(500)
     def internal_error(e):
-        return jsonify({'error': 'Internal server error'}), 500
+        # Never leak stack traces in production
+        if is_production:
+            app.logger.error(f'Internal error: {e}')
+            return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': f'Internal server error: {str(e)}'}), 500
 
     return app
 
