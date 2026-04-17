@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: nadsociety
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AUDIT_HMAC_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://nadsociety.vercel.app
+      - key: FLASK_ENV
+        value: production
+      - key: CSRF_ENFORCE
+        value: "true"
+      - key: SESSION_TIMEOUT
+        value: "1800"
+      - key: TOKEN_MAX_AGE
+        value: "3600"
