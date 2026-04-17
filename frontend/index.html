@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>NADSOC — Login</title>
+    <meta name="description" content="NAD Employees Co-operative Credit Society Ltd., Karanja — Secure Login Portal"/>
+    <link rel="icon" href="/assets/logo.png" type="image/png"/>
+    <link rel="stylesheet" href="/css/main.css"/>
+    <style>
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--clr-primary-800) 0%, var(--clr-primary-900) 40%, #050d1e 100%);
+            padding: var(--sp-4);
+            position: relative;
+            overflow: hidden;
+        }
+        .login-page::before {
+            content: '';
+            position: absolute;
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(26,86,219,0.15) 0%, transparent 70%);
+            top: -200px; right: -200px;
+            border-radius: 50%;
+        }
+        .login-page::after {
+            content: '';
+            position: absolute;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(26,86,219,0.1) 0%, transparent 70%);
+            bottom: -100px; left: -100px;
+            border-radius: 50%;
+        }
+        .login-container {
+            width: 100%; max-width: 440px;
+            position: relative; z-index: 1;
+        }
+        .login-card {
+            background: rgba(255,255,255,0.95);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius-xl);
+            box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+            padding: var(--sp-10) var(--sp-8);
+            animation: scaleIn 0.5s ease forwards;
+        }
+        .login-logo {
+            text-align: center;
+            margin-bottom: var(--sp-6);
+        }
+        .login-logo img {
+            width: 72px; height: 72px;
+            margin: 0 auto var(--sp-3);
+            border-radius: var(--radius-lg);
+        }
+        .login-logo h1 {
+            font-size: var(--fs-2xl);
+            font-weight: 800;
+            color: var(--clr-primary-800);
+            letter-spacing: 0.06em;
+        }
+        .login-logo p {
+            font-size: var(--fs-xs);
+            color: var(--clr-neutral-500);
+            margin-top: var(--sp-1);
+            line-height: 1.4;
+        }
+        .login-form { display: flex; flex-direction: column; gap: var(--sp-4); }
+        .login-form .form-input {
+            padding: var(--sp-3) var(--sp-4);
+            font-size: var(--fs-base);
+            border-radius: var(--radius-md);
+        }
+        .login-btn {
+            padding: var(--sp-3) var(--sp-6);
+            font-size: var(--fs-base);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--clr-primary-500), var(--clr-primary-700));
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+            letter-spacing: 0.02em;
+        }
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(26,86,219,0.35);
+        }
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        .login-footer {
+            text-align: center;
+            margin-top: var(--sp-6);
+            font-size: var(--fs-xs);
+            color: rgba(255,255,255,0.4);
+        }
+        .login-error {
+            background: var(--clr-danger-bg);
+            color: #991B1B;
+            padding: var(--sp-3) var(--sp-4);
+            border-radius: var(--radius-md);
+            font-size: var(--fs-sm);
+            display: none;
+            border-left: 4px solid var(--clr-danger);
+        }
+        .login-error.show { display: flex; align-items: center; gap: var(--sp-2); }
+        .pw-toggle {
+            position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; font-size: 18px; cursor: pointer;
+            color: var(--clr-neutral-400);
+        }
+        .pw-field-wrap { position: relative; }
+        .forgot-pw-wrap { text-align: center; margin-top: var(--sp-4); }
+        .forgot-pw-link { font-size: var(--fs-sm); color: var(--clr-primary-500); }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-logo">
+                    <img src="/assets/logo.png" alt="NADSOC Logo" onerror="this.style.display='none'"/>
+                    <h1>NADSOC</h1>
+                    <p>The NAD Employees Co-op. Credit Society Ltd., Karanja</p>
+                </div>
+
+                <div class="login-error" id="login-error">
+                    <span>❌</span>
+                    <span id="login-error-text"></span>
+                </div>
+
+                <form class="login-form" id="login-form" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label" for="login-email">Email Address</label>
+                        <input type="email" class="form-input" id="login-email"
+                               placeholder="Enter your email or GENNO@nadsoc.local"
+                               required autocomplete="email" autofocus/>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="login-password">Password</label>
+                        <div class="pw-field-wrap">
+                            <input type="password" class="form-input" id="login-password"
+                                   placeholder="Enter your password"
+                                   required autocomplete="current-password"/>
+                            <button type="button" class="pw-toggle" onclick="togglePw()" title="Show/Hide Password">👁</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="login-btn" id="login-btn">
+                        Sign In
+                    </button>
+                </form>
+
+                <div class="forgot-pw-wrap">
+                    <a href="#" class="forgot-pw-link"
+                       onclick="showForgotPassword(event)">Forgot Password?</a>
+                </div>
+            </div>
+            <div class="login-footer">
+                © 2026 NAD Employees Co-op. Credit Society Ltd., Karanja — v1.0.0
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration — auto-detects environment
+        window.NADSOC_CONFIG = {
+            API_URL: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+                ? 'http://localhost:5000/api'
+                : 'https://nadsociety.onrender.com/api' // Updated for Render
+        };
+    </script>
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+        // Redirect if already logged in
+        if (Auth.isLoggedIn()) {
+            window.location.href = '/dashboard.html';
+        }
+
+        function togglePw() {
+            const inp = document.getElementById('login-password');
+            inp.type = inp.type === 'password' ? 'text' : 'password';
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            const btn = document.getElementById('login-btn');
+            const errorEl = document.getElementById('login-error');
+            const errorText = document.getElementById('login-error-text');
+
+            if (!email || !password) {
+                errorEl.classList.add('show');
+                errorText.textContent = 'Please enter email and password.';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
+            errorEl.classList.remove('show');
+
+            try {
+                const data = await Auth.login(email, password);
+                if (data.user?.role === 'member') {
+                    window.location.href = '/member-portal.html';
+                } else {
+                    window.location.href = '/dashboard.html';
+                }
+            } catch (err) {
+                errorEl.classList.add('show');
+                errorText.textContent = err.message || 'Login failed. Please check your credentials.';
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
+            }
+        }
+
+        function showForgotPassword(e) {
+            e.preventDefault();
+            alert('Please contact your Admin to reset your password.');
+        }
+    </script>
+</body>
+</html>
