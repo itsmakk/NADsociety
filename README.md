@@ -1,6 +1,6 @@
 # NADSOC — Society Management System
 
-**The NAD Employees Co-operative Credit Society Ltd., Karanja**
+**The Employees Co-operative Credit Society Ltd., **
 
 A fully online, web-based, ledger-driven cooperative credit society management system built for ~5000 members.
 
@@ -94,4 +94,4 @@ The `frontend/` folder deploys automatically via Vercel Git integration.
 - Month locking for historical data integrity
 
 ## License
-Proprietary — NAD Employees Co-operative Credit Society Ltd., Karanja
+Proprietary — Employees Co-operative Credit Society Ltd.,
