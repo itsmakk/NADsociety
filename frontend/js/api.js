@@ -8,8 +8,17 @@
  */
 
 const API = (() => {
-    // Backend API base URL — set during deployment
-    const BASE_URL = window.NADSOC_CONFIG?.API_URL || 'https://nadsociety-production.up.railway.app/api';
+    /**
+     * Get the dynamic backend URL based on the current environment.
+     * localhost -> http://localhost:5000/api
+     * production -> https://nadsociety.onrender.com/api
+     */
+    function getBaseUrl() {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return 'http://localhost:5000/api';
+        }
+        return 'https://nadsociety.onrender.com/api';
+    }
 
     // CSRF token cache
     let _csrfToken = null;
@@ -39,7 +48,7 @@ const API = (() => {
         }
 
         try {
-            const res = await fetch(`${BASE_URL}/auth/csrf-token`, {
+            const res = await fetch(`${getBaseUrl()}/auth/csrf-token`, {
                 method: 'GET',
                 credentials: 'include'
             });
@@ -66,7 +75,7 @@ const API = (() => {
      * Core fetch wrapper with auth, CSRF, error handling, and retries
      */
     async function request(endpoint, options = {}) {
-        const url = `${BASE_URL}${endpoint}`;
+        const url = `${getBaseUrl()}${endpoint}`;
         const token = getToken();
         const method = (options.method || 'GET').toUpperCase();
 
@@ -173,10 +182,11 @@ const API = (() => {
             const { refresh_token } = JSON.parse(session);
             if (!refresh_token) return false;
 
-            const res = await fetch(`${BASE_URL}/auth/refresh`, {
+            const res = await fetch(`${getBaseUrl()}/auth/refresh`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh_token })
+                body: JSON.stringify({ refresh_token }),
+                credentials: 'include'
             });
 
             if (res.ok) {
@@ -211,7 +221,7 @@ const API = (() => {
             const csrf = await getCsrfToken();
             if (csrf) headers['X-CSRF-Token'] = csrf;
 
-            return fetch(`${BASE_URL}${endpoint}`, {
+            return fetch(`${getBaseUrl()}${endpoint}`, {
                 method: 'POST',
                 headers,
                 body: formData,
@@ -229,7 +239,7 @@ const API = (() => {
          */
         download: async (endpoint, filename) => {
             const token = getToken();
-            const res = await fetch(`${BASE_URL}${endpoint}`, {
+            const res = await fetch(`${getBaseUrl()}${endpoint}`, {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                 credentials: 'include'
             });
@@ -246,7 +256,7 @@ const API = (() => {
             SessionManager.recordActivity();
         },
 
-        BASE_URL,
+        getBaseUrl,
         getToken,
         getCsrfToken
     };
