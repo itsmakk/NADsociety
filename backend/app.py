@@ -84,6 +84,16 @@ def create_app():
 
     # ============================================================
 
+    # --- Root Endpoint ---
+    @app.route('/', methods=['GET'])
+    def index():
+        return jsonify({
+            'service': 'NADSOC Management System API',
+            'status': 'active',
+            'message': 'Welcome to the NADSOC Backend. Use /api/health for system status.',
+            'version': '2.0.0'
+        }), 200
+
     # --- Health Check Endpoint ---
     @app.route('/api/health', methods=['GET'])
     def health_check():
