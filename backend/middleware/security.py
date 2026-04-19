@@ -106,7 +106,7 @@ def init_security_headers(app):
 
         # --- Cross-Origin policies ---
         response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
-        response.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
+        response.headers['Cross-Origin-Resource-Policy'] = 'cross-origin'
 
         # --- Remove server identification ---
         response.headers.pop('Server', None)
