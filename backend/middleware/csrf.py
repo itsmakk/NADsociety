@@ -106,6 +106,11 @@ def init_csrf(app):
 
     @app.before_request
     def csrf_protect():
+
+        # Skip CSRF for API routes (Vercel → Render)
+if request.path.startswith("/api/"):
+    return None
+    
         """Validate CSRF token on state-changing requests."""
         # Skip safe methods
         if request.method not in UNSAFE_METHODS:
