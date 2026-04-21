@@ -28,6 +28,13 @@ def create_app():
     app.config['SUPABASE_JWT_SECRET'] = os.environ.get('SUPABASE_JWT_SECRET')
     app.config['DATABASE_URL'] = os.environ.get('DATABASE_URL')
 
+    # --- Environment Variable Validation ---
+    required_env_vars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_JWT_SECRET', 'DATABASE_URL', 'FRONTEND_URL']
+    for var in required_env_vars:
+        if not os.environ.get(var):
+            app.logger.error(f"Required environment variable {var} is not set")
+            raise RuntimeError(f"Required environment variable {var} is not set")
+
     # --- Logging ---
     is_production = os.environ.get('FLASK_ENV') == 'production'
     log_level = logging.WARNING if is_production else logging.INFO
