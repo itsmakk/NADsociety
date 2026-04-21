@@ -10,7 +10,14 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
 <body>
-
+    <script>
+        // Configuration — auto-detects environment
+        window.NADSOC_CONFIG = {
+            API_URL: (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+                ? 'http://localhost:5000/api'
+                : 'https://nadsociety.onrender.com/api' // Updated for Render
+        };
+    </script>
     <script src="/js/api.js"></script>
     <script src="/js/auth.js"></script>
     <script src="/js/utils.js"></script>
