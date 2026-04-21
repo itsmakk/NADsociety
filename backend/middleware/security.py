@@ -106,46 +106,10 @@ def init_security_headers(app):
 
         # --- Cross-Origin policies ---
         response.headers['Cross-Origin-Opener-Policy'] = 'same-origin'
-        response.headers['Cross-Origin-Resource-Policy'] = 'cross-origin'
+        response.headers['Cross-Origin-Resource-Policy'] = 'same-origin'
 
         # --- Remove server identification ---
         response.headers.pop('Server', None)
         response.headers.pop('X-Powered-By', None)
-
-        return response
-
-
-def init_cors_lockdown(app):
-    """
-    Production CORS lockdown.
-    Overrides the permissive CORS from Phase 2 with strict origin checking.
-    """
-    is_production = os.environ.get('FLASK_ENV') == 'production'
-    frontend_url = os.environ.get('FRONTEND_URL', '')
-
-    if not is_production:
-        return  # Keep permissive CORS in development
-
-    @app.after_request
-    def strict_cors(response):
-        """Enforce strict CORS in production."""
-        origin = request.headers.get('Origin', '')
-
-        # Only allow the configured frontend URL
-        allowed_origins = [frontend_url] if frontend_url else []
-
-        if origin in allowed_origins:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Headers'] = (
-                'Content-Type, Authorization, X-CSRF-Token, X-Requested-With'
-            )
-            response.headers['Access-Control-Allow-Methods'] = (
-                'GET, POST, PUT, PATCH, DELETE, OPTIONS'
-            )
-            response.headers['Access-Control-Max-Age'] = '3600'
-        else:
-            # Block cross-origin requests from unknown origins
-            response.headers.pop('Access-Control-Allow-Origin', None)
 
         return response
