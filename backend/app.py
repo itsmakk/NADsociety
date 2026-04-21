@@ -73,9 +73,8 @@ def create_app():
     # ============================================================
 
     # 1. Security Headers (CSP, HSTS, X-Frame-Options, cookies, cache control)
-    from middleware.security import init_security_headers, init_cors_lockdown
+    from middleware.security import init_security_headers
     init_security_headers(app)
-    init_cors_lockdown(app)
 
     # 2. Rate Limiting (brute-force protection on auth endpoints)
     from middleware.rate_limiter import init_rate_limiter
