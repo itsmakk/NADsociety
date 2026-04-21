@@ -113,7 +113,7 @@ limiter = RateLimiter()
 # --- Rate limit configurations ---
 RATE_LIMITS = {
     # Auth endpoints — strict limits
-    '/api/auth/login': {'max_requests': 5, 'window': 60},           # 5 per minute
+    '/api/auth/login': {'max_requests': 15, 'window': 60},           # 15 per minute
     '/api/auth/refresh': {'max_requests': 10, 'window': 60},         # 10 per minute
     '/api/auth/change-password': {'max_requests': 3, 'window': 300},  # 3 per 5 min
     '/api/auth/verify-password': {'max_requests': 10, 'window': 60},  # 10 per minute
@@ -122,7 +122,7 @@ RATE_LIMITS = {
     '/api/upload/members': {'max_requests': 5, 'window': 300},        # 5 per 5 min
 
     # General API — relaxed limits
-    '__default__': {'max_requests': 60, 'window': 60},                # 60 per minute
+    '__default__': {'max_requests': 100, 'window': 60},                # 100 per minute
 }
 
 
@@ -146,7 +146,14 @@ def init_rate_limiter(app):
 
         # Find matching rate limit config
         config = RATE_LIMITS.get(path, RATE_LIMITS['__default__'])
-        key = f"{ip}:{path}"
+
+        if request.path == "/api/auth/login":
+    data = request.get_json(silent=True) or {}
+    email = data.get("email", "unknown")
+    key = f"{email}:{path}"
+else:
+    key = f"{ip}:{path}"
+        
 
         is_limited, retry_after = limiter.is_rate_limited(
             key, config['max_requests'], config['window']
